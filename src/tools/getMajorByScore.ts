@@ -14,7 +14,8 @@ const SUBJECT_GROUP_ALIASES: Record<string, string> = {
 
 export const GET_MAJOR_BY_SCORE_TOOL = {
   name: "getMajorByScore",
-  description: "Query all majors reachable with the given admission score",
+      description:
+        "Query all majors reachable with the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -102,7 +103,7 @@ WHERE sml.min_score IS NOT NULL
   AND sml.min_score <= $1::numeric
   AND ss.province = $2
   AND ($3::int IS NULL OR ss.year = $3)
-  AND ($4::text IS NULL OR ss.subject_group = $4)
+  AND ($4::text IS NULL OR ss.subject_group = $4 OR ss.subject_group = REPLACE($4, '类', '组'))
   AND ($5::text IS NULL OR ss.campus = $5)
   AND ($6::text IS NULL OR ss.admission_type = $6)
 ORDER BY sml.min_score DESC, u.name, sml.major_name
