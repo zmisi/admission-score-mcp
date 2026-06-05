@@ -14,9 +14,9 @@ Query all majors reachable with the given admission score (`score_major_line.min
 | `score` | number | yes | Admission score |
 | `province` | string | yes | Province, e.g. `安徽` |
 | `year` | number | no | Admission year |
-| `subject_group` | string | no | `物理类` / `历史类` (aliases `物理`, `历史`) |
+| `subject_group` | string | no | `物理` / `历史` prefix match; aliases `物理类`, `物理组`, `历史类`, `历史组` |
 | `campus` | string | no | Campus, e.g. `合肥校区`, `宣城校区` |
-| `admission_type` | string | no | `普通批`, `国家专项`, `中外合作` |
+| `admission_type` | string | no | `普通批` (also matches DB `普通` and empty), `国家专项`, `中外合作`, `地方专项` |
 | `limit` | number | no | Max rows (default 1000, max 5000) |
 
 Returns `{ count, majors: [...] }` with university, major, score line, and snapshot fields (`year`, `province`, `subject_group`, etc.).

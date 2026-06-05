@@ -5,17 +5,22 @@ const DEFAULT_LIMIT = 1000;
 const MAX_LIMIT = 5000;
 const SCHEMA = "admissions";
 
-const SUBJECT_GROUP_ALIASES: Record<string, string> = {
-  物理: "物理类",
-  物理方向: "物理类",
-  历史: "历史类",
-  历史方向: "历史类",
+/** Maps user input to a subject prefix for LIKE matching (物理类/物理组 → 物理). */
+const SUBJECT_GROUP_STEMS: Record<string, string> = {
+  物理: "物理",
+  物理类: "物理",
+  物理组: "物理",
+  物理方向: "物理",
+  历史: "历史",
+  历史类: "历史",
+  历史组: "历史",
+  历史方向: "历史",
 };
 
 export const GET_MAJOR_BY_SCORE_TOOL = {
   name: "getMajorByScore",
-      description:
-        "Query all majors reachable with the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one.",
+  description:
+    "Query all majors where min_score <= the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one. subject_group accepts 物理/物理类/物理组 (and 历史 variants) — all map to the same track. admission_type 普通批 also matches DB values 普通 and empty. 冲/稳/保 tier classification is done by the caller by comparing each major's min_score to the user's actual score — call once with the user's score only.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -34,8 +39,17 @@ export const GET_MAJOR_BY_SCORE_TOOL = {
       subject_group: {
         type: "string",
         description:
-          "Subject track: 物理类 or 历史类 (aliases 物理/历史 accepted)",
-        enum: ["物理类", "历史类", "物理", "历史", "物理方向", "历史方向"],
+          "Subject track prefix: 物理 or 历史 (aliases 物理类/物理组/历史类/历史组 accepted)",
+        enum: [
+          "物理类",
+          "历史类",
+          "物理组",
+          "历史组",
+          "物理",
+          "历史",
+          "物理方向",
+          "历史方向",
+        ],
       },
       campus: {
         type: "string",
@@ -43,8 +57,9 @@ export const GET_MAJOR_BY_SCORE_TOOL = {
       },
       admission_type: {
         type: "string",
-        description: "Admission batch type (optional)",
-        enum: ["普通批", "国家专项", "中外合作"],
+        description:
+          "Admission batch type (optional). 普通批 also matches 普通 and empty values in DB.",
+        enum: ["普通批", "普通", "国家专项", "中外合作", "地方专项"],
       },
       limit: {
         type: "number",
@@ -103,9 +118,20 @@ WHERE sml.min_score IS NOT NULL
   AND sml.min_score <= $1::numeric
   AND ss.province = $2
   AND ($3::int IS NULL OR ss.year = $3)
-  AND ($4::text IS NULL OR ss.subject_group = $4 OR ss.subject_group = REPLACE($4, '类', '组'))
+  AND ($4::text IS NULL OR ss.subject_group LIKE $4 || '%')
   AND ($5::text IS NULL OR ss.campus = $5)
-  AND ($6::text IS NULL OR ss.admission_type = $6)
+  AND (
+    $6::text IS NULL
+    OR ss.admission_type = $6
+    OR (
+      $6 IN ('普通批', '普通')
+      AND (
+        ss.admission_type IN ('普通批', '普通')
+        OR ss.admission_type IS NULL
+        OR ss.admission_type = ''
+      )
+    )
+  )
 ORDER BY sml.min_score DESC, u.name, sml.major_name
 LIMIT $7
 `;
@@ -121,8 +147,10 @@ function requireNonEmptyString(
   return value.trim();
 }
 
-function normalizeSubjectGroup(value: string): string {
-  return SUBJECT_GROUP_ALIASES[value] ?? value;
+/** Exported for tests. Strips 类/组 suffix and maps aliases to a LIKE prefix. */
+export function subjectGroupStem(value: string): string {
+  const trimmed = value.trim();
+  return SUBJECT_GROUP_STEMS[trimmed] ?? trimmed.replace(/[类组]$/, "");
 }
 
 export function parseGetMajorByScoreArgs(
@@ -148,7 +176,7 @@ export function parseGetMajorByScoreArgs(
     if (typeof raw.subject_group !== "string" || raw.subject_group.trim() === "") {
       throw new Error("subject_group must be a non-empty string");
     }
-    args.subject_group = normalizeSubjectGroup(raw.subject_group.trim());
+    args.subject_group = subjectGroupStem(raw.subject_group);
   }
 
   if (raw.campus !== undefined) {
