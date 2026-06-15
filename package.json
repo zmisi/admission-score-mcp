@@ -10,7 +10,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "test": "npm run build && node --test dist/tools/getMajorByScore.test.js"
+    "test": "npm run build && node --test dist/tools/getMajorByScore.test.js dist/tools/getRankByScore.test.js"
   },
   "engines": {
     "node": ">=18"

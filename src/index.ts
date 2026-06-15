@@ -12,6 +12,11 @@ import {
   getMajorByScore,
   parseGetMajorByScoreArgs,
 } from "./tools/getMajorByScore.js";
+import {
+  GET_RANK_BY_SCORE_TOOL,
+  getRankByScore,
+  parseGetRankByScoreArgs,
+} from "./tools/getRankByScore.js";
 
 const SERVER_NAME = "admission-score-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -38,7 +43,7 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [GET_MAJOR_BY_SCORE_TOOL],
+  tools: [GET_MAJOR_BY_SCORE_TOOL, GET_RANK_BY_SCORE_TOOL],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -59,6 +64,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               null,
               2,
             ),
+          },
+        ],
+        isError: false,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      };
+    }
+  }
+
+  if (name === "getRankByScore") {
+    try {
+      const parsed = parseGetRankByScoreArgs(
+        args as Record<string, unknown> | undefined,
+      );
+      const rows = await getRankByScore(pool, parsed);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ count: rows.length, ranks: rows }, null, 2),
           },
         ],
         isError: false,
