@@ -20,7 +20,7 @@ const SUBJECT_GROUP_STEMS: Record<string, string> = {
 export const GET_MAJOR_BY_SCORE_TOOL = {
   name: "getMajorByScore",
   description:
-    "Query all majors where min_score <= the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one. subject_group accepts 物理/物理类/物理组 (and 历史 variants) — all map to the same track. admission_type 普通批 also matches DB values 普通 and empty. 冲/稳/保 tier classification is done by the caller by comparing each major's min_score to the user's actual score — call once with the user's score only.",
+    "Query all majors where min_score <= the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST), 安徽师范大学(AHNU). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one. subject_group accepts 物理/物理类/物理组 (and 历史 variants) — all map to the same track. admission_type 普通批 also matches DB values 普通 and empty. 冲/稳/保 tier classification is done by the caller by comparing each major's min_score to the user's actual score — call once with the user's score only.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -94,6 +94,8 @@ export type MajorByScoreRow = {
   subject_group: string;
   campus: string;
   admission_type: string;
+  discipline_category: string | null;
+  discipline_groups: string[] | null;
 };
 
 const SQL = `
@@ -110,15 +112,41 @@ SELECT
   ss.province,
   ss.subject_group,
   ss.campus,
-  ss.admission_type
+  ss.admission_type,
+  cat.discipline_category,
+  cat.discipline_groups
 FROM ${SCHEMA}.score_major_line sml
 JOIN ${SCHEMA}.score_snapshot ss ON ss.id = sml.snapshot_id
 JOIN ${SCHEMA}.university u ON u.code = ss.university_code
+LEFT JOIN LATERAL (
+  SELECT mc.discipline_category, mc.discipline_groups
+  FROM ${SCHEMA}.major_catalog mc
+  WHERE sml.major_name = mc.major_name
+     OR sml.major_name LIKE mc.major_name || '(%'
+     OR (
+       length(mc.major_name) >= 4
+       AND sml.major_name LIKE '%' || mc.major_name || '%'
+     )
+  ORDER BY
+    CASE
+      WHEN sml.major_name = mc.major_name THEN 0
+      WHEN sml.major_name LIKE mc.major_name || '(%' THEN 1
+      ELSE 2
+    END,
+    length(mc.major_name) DESC
+  LIMIT 1
+) cat ON true
 WHERE sml.min_score IS NOT NULL
   AND sml.min_score <= $1::numeric
   AND ss.province = $2
   AND ($3::int IS NULL OR ss.year = $3)
-  AND ($4::text IS NULL OR ss.subject_group LIKE $4 || '%')
+  AND (
+    $4::text IS NULL
+    OR ss.subject_group LIKE $4 || '%'
+    OR ss.subject_group LIKE '%' || $4 || '%'
+    OR ($4 = '物理' AND ss.subject_group = '理工类')
+    OR ($4 = '历史' AND ss.subject_group = '文史类')
+  )
   AND ($5::text IS NULL OR ss.campus = $5)
   AND (
     $6::text IS NULL

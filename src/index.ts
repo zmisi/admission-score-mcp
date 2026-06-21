@@ -13,6 +13,11 @@ import {
   parseGetMajorByScoreArgs,
 } from "./tools/getMajorByScore.js";
 import {
+  GET_MAJOR_BY_RANK_TOOL,
+  getMajorByRank,
+  parseGetMajorByRankArgs,
+} from "./tools/getMajorByRank.js";
+import {
   GET_RANK_BY_SCORE_TOOL,
   getRankByScore,
   parseGetRankByScoreArgs,
@@ -43,7 +48,7 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [GET_MAJOR_BY_SCORE_TOOL, GET_RANK_BY_SCORE_TOOL],
+  tools: [GET_MAJOR_BY_SCORE_TOOL, GET_MAJOR_BY_RANK_TOOL, GET_RANK_BY_SCORE_TOOL],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -64,6 +69,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               null,
               2,
             ),
+          },
+        ],
+        isError: false,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      };
+    }
+  }
+
+  if (name === "getMajorByRank") {
+    try {
+      const parsed = parseGetMajorByRankArgs(
+        args as Record<string, unknown> | undefined,
+      );
+      const result = await getMajorByRank(pool, parsed);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
           },
         ],
         isError: false,
