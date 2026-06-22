@@ -1,6 +1,7 @@
 import type pg from "pg";
 import { queryReadOnly } from "../db.js";
 import { subjectGroupStem } from "./getMajorByScore.js";
+import { resolveAdmissionYear } from "../defaultAdmissionYear.js";
 
 const SCHEMA = "admissions";
 const DEFAULT_PROVINCE = "安徽";
@@ -8,7 +9,7 @@ const DEFAULT_PROVINCE = "安徽";
 export const GET_RANK_BY_SCORE_TOOL = {
   name: "getRankByScore",
   description:
-    "Look up the rank (位次) for a given admission score using provincial score segment tables. By default returns ranks for all available years. subject_group accepts 物理/物理类/物理组 (and 历史 variants); 物理 also matches 2023 理工类, 历史 matches 2023 文史类. Returns rank_min and rank_max for the score band; when they are equal, rank is also set. Each row includes source_url and source_provider from the imported official score segment snapshot.",
+    "Look up the rank (位次) for a given admission score using provincial score segment tables. Defaults to admission year 2025 when year is omitted. subject_group accepts 物理/物理类/物理组 (and 历史 variants); 物理 also matches 2023 理工类, 历史 matches 2023 文史类. Returns rank_min and rank_max for the score band; when they are equal, rank is also set. Each row includes source_url and source_provider from the imported official score segment snapshot.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -22,7 +23,7 @@ export const GET_RANK_BY_SCORE_TOOL = {
       },
       year: {
         type: "number",
-        description: "Admission year (optional; omit to query all years)",
+        description: "Admission year (optional, default 2025)",
       },
       subject_group: {
         type: "string",
@@ -167,9 +168,10 @@ export async function getRankByScore(
   pool: pg.Pool,
   args: GetRankByScoreArgs,
 ): Promise<RankByScoreRow[]> {
+  const year = resolveAdmissionYear(args.year);
   const rows = await queryReadOnly<RankDbRow>(pool, SQL, [
     args.province,
-    args.year ?? null,
+    year,
     Math.trunc(args.score),
     args.subject_group ?? null,
   ]);

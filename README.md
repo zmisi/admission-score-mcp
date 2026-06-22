@@ -19,9 +19,15 @@ Query all majors reachable with the given admission score (`score_major_line.min
 | `admission_type` | string | no | `普通批` (also matches DB `普通` and empty), `国家专项`, `中外合作`, `地方专项` |
 | `limit` | number | no | Max rows (default 1000, max 5000) |
 
-Returns `{ count, majors: [...] }` with university, major, score line, and snapshot fields (`year`, `province`, `subject_group`, etc.).
+Returns `{ count, majors: [...] }` with university, major, score line, snapshot fields (`year`, `province`, `subject_group`, etc.), and `plan_count` (integer or `null` when no matching plan row exists).
 
-Tables used: `admissions.score_major_line`, `admissions.score_snapshot`, `admissions.university`.
+**Plan year:** when `year` is provided in the tool args, `plan_count` is looked up from `plan_snapshot` for that year (plans may be published before score lines). When `year` is omitted, plan lookup uses each score row's `ss.year`.
+
+Tables used: `admissions.score_major_line`, `admissions.score_snapshot`, `admissions.university`, `admissions.plan_snapshot`, `admissions.plan_major_line`.
+
+## Tool: `getMajorByRank`
+
+Same major row shape as `getMajorByScore`, plus `tier` and `majors_by_tier` grouping for 冲/稳/保. Each major includes `plan_count` with the same plan-year rules as above.
 
 ## Setup
 

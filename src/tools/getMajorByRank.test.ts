@@ -67,7 +67,7 @@ describe("parseGetMajorByRankArgs", () => {
 });
 
 describe("buildMajorByRankResult", () => {
-  const sampleRow = (name: string, minRank: number) => ({
+  const sampleRow = (name: string, minRank: number, planCount: number | null = 10) => ({
     university_code: "hfut",
     university_name: "合肥工业大学",
     major_name: name,
@@ -83,6 +83,7 @@ describe("buildMajorByRankResult", () => {
     admission_type: "普通批",
     discipline_category: null,
     discipline_groups: null,
+    plan_count: planCount,
   });
 
   it("groups majors into tiers", () => {
@@ -100,6 +101,7 @@ describe("buildMajorByRankResult", () => {
     assert.equal(result.majors_by_tier.冲[0]?.major_name, "冲高专业");
     assert.equal(result.majors_by_tier.稳[0]?.major_name, "稳妥专业");
     assert.equal(result.majors_by_tier.保[0]?.major_name, "保底专业");
+    assert.equal(result.majors_by_tier.稳[0]?.plan_count, 10);
   });
 
   it("filters to a single tier when requested", () => {
@@ -111,5 +113,12 @@ describe("buildMajorByRankResult", () => {
     );
     assert.equal(result.count, 1);
     assert.equal(result.majors[0]?.tier, "稳");
+  });
+
+  it("preserves null plan_count through tier grouping", () => {
+    const result = buildMajorByRankResult(10000, [
+      sampleRow("无计划专业", 11000, null),
+    ]);
+    assert.equal(result.majors[0]?.plan_count, null);
   });
 });

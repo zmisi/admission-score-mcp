@@ -1,5 +1,10 @@
 import type pg from "pg";
 import { queryReadOnly } from "../db.js";
+import {
+  PLAN_YEAR_PARAM_BY_SCORE,
+  planMajorLateralSql,
+} from "./planMajorMatch.js";
+import { resolveAdmissionYear } from "../defaultAdmissionYear.js";
 
 const DEFAULT_LIMIT = 1000;
 const MAX_LIMIT = 5000;
@@ -20,7 +25,7 @@ const SUBJECT_GROUP_STEMS: Record<string, string> = {
 export const GET_MAJOR_BY_SCORE_TOOL = {
   name: "getMajorByScore",
   description:
-    "Query all majors where min_score <= the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST), 安徽师范大学(AHNU). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one. subject_group accepts 物理/物理类/物理组 (and 历史 variants) — all map to the same track. admission_type 普通批 also matches DB values 普通 and empty. 冲/稳/保 tier classification is done by the caller by comparing each major's min_score to the user's actual score — call once with the user's score only.",
+    "Query all majors where min_score <= the given admission score. Supports multiple universities including 合肥工业大学(HFUT), 合肥大学(HFUU), 安徽大学(AHU), 安徽工业大学(AHUT), 安徽农业大学(AHAU), 安徽理工大学(AUST), 安徽师范大学(AHNU). Returns data for ALL matching universities — do NOT restrict to just one university unless the user specifies one. subject_group accepts 物理/物理类/物理组 (and 历史 variants) — all map to the same track. admission_type 普通批 also matches DB values 普通 and empty. Each major includes plan_count from plan_major_line when a matching plan snapshot exists (null otherwise). Plan year uses the year argument when provided, else the score snapshot year. 冲/稳/保 tier classification is done by the caller by comparing each major's min_score to the user's actual score — call once with the user's score only.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -34,7 +39,7 @@ export const GET_MAJOR_BY_SCORE_TOOL = {
       },
       year: {
         type: "number",
-        description: "Admission year (optional)",
+        description: "Admission year (optional, default 2025)",
       },
       subject_group: {
         type: "string",
@@ -96,6 +101,7 @@ export type MajorByScoreRow = {
   admission_type: string;
   discipline_category: string | null;
   discipline_groups: string[] | null;
+  plan_count: number | null;
 };
 
 const SQL = `
@@ -111,10 +117,11 @@ SELECT
   ss.year,
   ss.province,
   ss.subject_group,
-  ss.campus,
+  COALESCE(NULLIF(plan.plan_campus, ''), NULLIF(ss.campus, ''), '') AS campus,
   ss.admission_type,
   cat.discipline_category,
-  cat.discipline_groups
+  cat.discipline_groups,
+  plan.plan_count
 FROM ${SCHEMA}.score_major_line sml
 JOIN ${SCHEMA}.score_snapshot ss ON ss.id = sml.snapshot_id
 JOIN ${SCHEMA}.university u ON u.code = ss.university_code
@@ -136,6 +143,7 @@ LEFT JOIN LATERAL (
     length(mc.major_name) DESC
   LIMIT 1
 ) cat ON true
+${planMajorLateralSql(PLAN_YEAR_PARAM_BY_SCORE)}
 WHERE sml.min_score IS NOT NULL
   AND sml.min_score <= $1::numeric
   AND ss.province = $2
@@ -235,6 +243,7 @@ export async function getMajorByScore(
   pool: pg.Pool,
   args: GetMajorByScoreArgs,
 ): Promise<MajorByScoreRow[]> {
+  const year = resolveAdmissionYear(args.year);
   const limit = Math.min(
     Math.max(1, args.limit ?? DEFAULT_LIMIT),
     MAX_LIMIT,
@@ -242,10 +251,11 @@ export async function getMajorByScore(
   return queryReadOnly<MajorByScoreRow>(pool, SQL, [
     args.score,
     args.province,
-    args.year ?? null,
+    year,
     args.subject_group ?? null,
     args.campus ?? null,
     args.admission_type ?? null,
     limit,
+    year,
   ]);
 }
