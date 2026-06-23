@@ -22,6 +22,11 @@ import {
   getRankByScore,
   parseGetRankByScoreArgs,
 } from "./tools/getRankByScore.js";
+import {
+  GET_MAJOR_HISTORY_TOOL,
+  getMajorHistory,
+  parseGetMajorHistoryArgs,
+} from "./tools/getMajorHistory.js";
 
 const SERVER_NAME = "admission-score-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -48,7 +53,12 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [GET_MAJOR_BY_SCORE_TOOL, GET_MAJOR_BY_RANK_TOOL, GET_RANK_BY_SCORE_TOOL],
+  tools: [
+    GET_MAJOR_BY_SCORE_TOOL,
+    GET_MAJOR_BY_RANK_TOOL,
+    GET_RANK_BY_SCORE_TOOL,
+    GET_MAJOR_HISTORY_TOOL,
+  ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -93,6 +103,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           {
             type: "text",
             text: JSON.stringify(result, null, 2),
+          },
+        ],
+        isError: false,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      };
+    }
+  }
+
+  if (name === "getMajorHistory") {
+    try {
+      const parsed = parseGetMajorHistoryArgs(
+        args as Record<string, unknown> | undefined,
+      );
+      const rows = await getMajorHistory(pool, parsed);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ count: rows.length, rows }, null, 2),
           },
         ],
         isError: false,

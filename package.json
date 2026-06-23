@@ -10,7 +10,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "test": "npm run build && node --test dist/defaultAdmissionYear.test.js dist/tools/getMajorByScore.test.js dist/tools/getMajorByRank.test.js dist/tools/getRankByScore.test.js dist/tools/planMajorMatch.test.js"
+    "test": "npm run build && node --test dist/defaultAdmissionYear.test.js dist/tools/getMajorByScore.test.js dist/tools/getMajorByRank.test.js dist/tools/getRankByScore.test.js dist/tools/getMajorHistory.test.js dist/tools/planMajorMatch.test.js"
   },
   "engines": {
     "node": ">=18"
